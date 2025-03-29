@@ -1,1 +1,3 @@
-Emulating Sketchpad by Ivan Sutherland
+# Sketchpad UI Emulator
+
+Emulating Sketchpad by Ivan Sutherland. 
