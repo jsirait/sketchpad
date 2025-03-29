@@ -1,0 +1,7 @@
+03/29
+* Dots look good 
+* Lines look good but need to be rubber-like 
+* Arc does not work yet (i.e. defaults to half circle) 
+* Constraints not yet implemented 
+* Need to implement delete button 
+
