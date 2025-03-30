@@ -7,3 +7,5 @@
 * Constraints not yet implemented 
 * Need to implement delete button 
 
+03/29 
+* Flicking works but perhaps endpoint can be more precise 
