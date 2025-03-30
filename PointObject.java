@@ -15,4 +15,17 @@ public class PointObject extends GeometricObject {
         g2d.setColor(Color.BLACK);
         g2d.fillOval(x-SIZE/2, y-SIZE/2, SIZE, SIZE);
     }
+
+    @Override 
+    public boolean contains(int px, int py) {
+        int tolerance = 5; 
+        int dx = px - x; 
+        int dy = py - y; 
+        return dx*dx + dy*dy <= tolerance*tolerance; 
+    }
+
+    @Override 
+    public String toString() {
+        return "Point(" + x + ", " + y + ")"; 
+    }
 }

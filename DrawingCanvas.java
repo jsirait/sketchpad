@@ -6,7 +6,7 @@ import java.util.List;
 
 public class DrawingCanvas extends JPanel implements MouseListener, MouseMotionListener {
     public enum Mode {
-        NONE, POINT, LINE, ARC
+        NONE, POINT, LINE, ARC, DELETE
     }
     
     private Mode currentMode = Mode.NONE;
@@ -30,8 +30,9 @@ public class DrawingCanvas extends JPanel implements MouseListener, MouseMotionL
     
     public void setMode(Mode mode) {
         this.currentMode = mode; 
-        System.out.println("Mode changed to: " + mode); 
         isDragging = false; 
+        repaint(); 
+        System.out.println("Mode changed to: " + mode); 
     } 
 
     private void updateRubberBand(MouseEvent e) {
@@ -126,24 +127,37 @@ public class DrawingCanvas extends JPanel implements MouseListener, MouseMotionL
                 lastY = currentY; 
                 lastTime = System.currentTimeMillis(); 
             }
+        } else if (currentMode == Mode.DELETE) {
+            // iterate in reverse order so that objects on top are checked first 
+            for (int i = objects.size() - 1; i>=0; i--) {
+                GeometricObject obj = objects.get(i); 
+                if (obj.contains(x,y)) {
+                    objects.remove(i); 
+                    System.out.println("Deleted object"); 
+                    repaint(); 
+                    break;                     
+                }
+            }
         }
     } 
 
     @Override 
     public void mouseDragged(MouseEvent e) {
-        // if (currentMode == Mode.LINE && isDragging) {
-        //     // update 
-        //     currentX = e.getX();
-        //     currentY = e.getY();
-        //     repaint(); 
-        // } 
-        updateRubberBand(e); 
+        if (currentMode == Mode.LINE && isDragging) {
+            // // update 
+            // currentX = e.getX();
+            // currentY = e.getY();
+            // repaint(); 
+            updateRubberBand(e); 
+        } 
     }
 
 
     @Override 
     public void mouseMoved(MouseEvent e) {
-        updateRubberBand(e); 
+        if (currentMode == Mode.LINE && isDragging) {
+            updateRubberBand(e); 
+        }
     }
 
 

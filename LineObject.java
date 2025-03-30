@@ -32,5 +32,26 @@ public class LineObject extends GeometricObject{
         g2d.setColor(Color.BLUE);  // probably should be uniform 
         g2d.drawLine(x1, y1, x2, y2);
     }
+
+    @Override
+    public boolean contains(int px, int py) {
+        final double tolerance = 10.0; // increased tolerance
+        double dx = x2 - x1;
+        double dy = y2 - y1;
+        double lengthSquared = dx * dx + dy * dy;
+        if (lengthSquared == 0) return false;
+        double t = ((px - x1) * dx + (py - y1) * dy) / lengthSquared;
+        t = Math.max(0, Math.min(1, t));
+        double projX = x1 + t * dx;
+        double projY = y1 + t * dy;
+        double distance = Math.sqrt(Math.pow(px - projX, 2) + Math.pow(py - projY, 2));
+        return distance <= tolerance;
+    }
     
+    
+    @Override
+    public String toString() {
+        return "Line[(" + x1 + ", " + y1 + ") -> (" + x2 + ", " + y2 + ")]";
+    }
+
 }

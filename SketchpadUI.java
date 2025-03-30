@@ -14,9 +14,11 @@ public class SketchpadUI extends JFrame {
         JButton pointButton = new JButton("point");
         JButton lineButton = new JButton("line");
         JButton arcButton = new JButton("arc");
+        JButton deleteButton = new JButton("delete");
         buttonPanelTop.add(pointButton);
         buttonPanelTop.add(lineButton);
         buttonPanelTop.add(arcButton);
+        buttonPanelTop.add(deleteButton); 
         
         // Bottom panel for constraint buttons
         JPanel buttonPanelBottom = new JPanel(new FlowLayout());
@@ -49,6 +51,7 @@ public class SketchpadUI extends JFrame {
         pointButton.addActionListener(e -> canvas.setMode(DrawingCanvas.Mode.POINT));
         lineButton.addActionListener(e -> canvas.setMode(DrawingCanvas.Mode.LINE));
         arcButton.addActionListener(e -> canvas.setMode(DrawingCanvas.Mode.ARC));
+        deleteButton.addActionListener(e -> canvas.setMode(DrawingCanvas.Mode.DELETE));
         
         // Constraint buttons - placeholders for now
         equalLengthButton.addActionListener(e -> System.out.println("Equal Length constraint selected."));
