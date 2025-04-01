@@ -23,6 +23,16 @@ public class DrawingCanvas extends JPanel implements MouseListener, MouseMotionL
     // threshold speed in pixels per milliseconds 
     private static final double FLICK_THRESHOLD = 1.0; 
 
+    // for arc draw 
+    // arc stage defined 
+    // 0 = not started 
+    // 1 = center defined 
+    // 2 = radius defined and now defining angle 
+    private int arcCenterX, arcCenterY; 
+    private int arcRadius; 
+    private double arcStartAngle, arcSweepAngle; 
+    private int arcStage = 0;
+
     public DrawingCanvas() {
         addMouseListener(this);
         addMouseMotionListener(this);
@@ -35,6 +45,9 @@ public class DrawingCanvas extends JPanel implements MouseListener, MouseMotionL
         System.out.println("Mode changed to: " + mode); 
     } 
 
+    /** 
+     * LINE 
+     */
     private void updateRubberBand(MouseEvent e) {
         if (currentMode == Mode.LINE && isDragging) {
             currentX = e.getX();
@@ -66,7 +79,48 @@ public class DrawingCanvas extends JPanel implements MouseListener, MouseMotionL
         System.out.println("Line is finalized from (" + startX + ", " + startY + ") to (" + currentX + ", " + currentY + ")");
     }
 
+    /** 
+     * ARC 
+     */
+    private void updateArcRubberBand(MouseEvent e) {
+        if (currentMode == Mode.ARC && arcStage == 2 && isDragging) {
+            currentX = e.getX(); 
+            currentY = e.getY(); 
+            // compute current angle from center to current mouse position 
+            double currentAngle = Math.toDegrees(Math.atan2(arcCenterY-currentY, currentX-arcCenterX)); 
+            arcSweepAngle = currentAngle - arcStartAngle; 
+            // flick 
+            long currentTime = System.currentTimeMillis(); 
+            long dt = currentTime - lastTime; 
+            if (dt > 0) {
+                double dx = currentX - lastX; 
+                double dy = currentY - lastY; 
+                double distance = Math.sqrt(dx*dx + dy*dy); 
+                double speed = distance / dt; 
+                if (speed > FLICK_THRESHOLD) {
+                    finalizeArc(); 
+                    return; 
+                }
+            }
+            lastX = currentX;
+            lastY = currentY; 
+            lastTime = currentTime; 
+            repaint(); 
+        }
+    }
     
+    private void finalizeArc() {
+        // computing bounding box 
+        int x = arcCenterX - arcRadius; 
+        int y = arcCenterY - arcRadius; 
+        int diameter = arcRadius*2; 
+        objects.add(new ArcObject(x, y, diameter, diameter, (int)arcStartAngle, (int)arcSweepAngle)); 
+        isDragging = false; 
+        arcStage = 0; 
+        repaint(); 
+        System.out.println("arc drawn"); 
+    }
+
     @Override
     protected void paintComponent(Graphics g) {
         super.paintComponent(g);
@@ -80,6 +134,20 @@ public class DrawingCanvas extends JPanel implements MouseListener, MouseMotionL
         if (currentMode == Mode.LINE && isDragging) {
             g.setColor(Color.GRAY); 
             g.drawLine(startX, startY, currentX, currentY); 
+        } 
+
+        // draw temporary arc 
+        if (currentMode == Mode.ARC && isDragging) {
+            g.setColor(Color.GRAY); 
+            if (arcStage == 1) {
+                // show center 
+                g.fillOval(arcCenterX-3, arcCenterY-3, 6, 6); 
+            } else if (arcStage == 2) {
+                int x = arcCenterX - arcRadius; 
+                int y = arcCenterY - arcRadius; 
+                int diameter = arcRadius*2; 
+                g.drawArc(x, y, diameter, diameter, (int)arcStartAngle, (int)arcSweepAngle); 
+            }
         }
     }
     
@@ -127,7 +195,26 @@ public class DrawingCanvas extends JPanel implements MouseListener, MouseMotionL
                 lastY = currentY; 
                 lastTime = System.currentTimeMillis(); 
             }
-        } else if (currentMode == Mode.DELETE) {
+        } else if (currentMode == Mode.ARC) {
+            if (arcStage == 0) {
+                // first click is for center 
+                arcCenterX = x; 
+                arcCenterY = y; 
+                arcStage = 1; 
+                isDragging = true; 
+                System.out.println("arc center set"); 
+            } else if (arcStage == 1) {
+                // second click to define radius and compute starting angle 
+                arcRadius = (int) Math.round(Math.sqrt(Math.pow(x - arcCenterX, 2) + Math.pow(y - arcCenterY, 2)));
+                arcStartAngle = Math.toDegrees(Math.atan2(arcCenterY - y, x - arcCenterX));
+                arcStage = 2;
+                // Initialize flick detection variables for arc dragging.
+                lastX = x;
+                lastY = y;
+                lastTime = System.currentTimeMillis(); 
+                System.out.println("arc radius set");
+            }
+        }else if (currentMode == Mode.DELETE) {
             // iterate in reverse order so that objects on top are checked first 
             for (int i = objects.size() - 1; i>=0; i--) {
                 GeometricObject obj = objects.get(i); 
@@ -149,7 +236,9 @@ public class DrawingCanvas extends JPanel implements MouseListener, MouseMotionL
             // currentY = e.getY();
             // repaint(); 
             updateRubberBand(e); 
-        } 
+        } else if (currentMode == Mode.ARC && isDragging) {
+            updateArcRubberBand(e); 
+        }
     }
 
 
@@ -157,6 +246,8 @@ public class DrawingCanvas extends JPanel implements MouseListener, MouseMotionL
     public void mouseMoved(MouseEvent e) {
         if (currentMode == Mode.LINE && isDragging) {
             updateRubberBand(e); 
+        } else if (currentMode == Mode.ARC && isDragging) {
+            updateArcRubberBand(e); 
         }
     }
 

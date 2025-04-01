@@ -12,3 +12,6 @@
 * Does Sketchpad allow for selecting object and moving the object? 
 * Deleting point and line works 
 
+03/31 
+* Make progress with arc; need to be 360 degrees 
+* Deleting arc is a bit iffy still 
