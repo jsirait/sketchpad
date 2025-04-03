@@ -15,7 +15,10 @@ public class DrawingCanvas extends JPanel implements MouseListener, MouseMotionL
     
     private Mode currentMode = Mode.NONE;
     private List<GeometricObject> objects = new ArrayList<>();
-    // private Point startPoint;  // Used for line creation
+    // private Point startPoint;  // Used for line creation 
+
+    // zooming 
+    private double scale = 1.0; 
 
     // make drawing a line be like dragging a rubber band 
     private int startX, startY, currentX, currentY;
@@ -25,7 +28,7 @@ public class DrawingCanvas extends JPanel implements MouseListener, MouseMotionL
     private int lastX, lastY; 
     private long lastTime;  // in milliseconds 
     // threshold speed in pixels per milliseconds 
-    private static final double FLICK_THRESHOLD = 1.0; 
+    private static final double FLICK_THRESHOLD = 2.0; 
 
     // for arc draw 
     // arc stage defined 
@@ -54,13 +57,25 @@ public class DrawingCanvas extends JPanel implements MouseListener, MouseMotionL
         System.out.println("Mode changed to: " + mode); 
     } 
 
+    public void zoomIn() {
+        scale *= 1.1; 
+        repaint(); 
+    } 
+
+    public void zoomOut() {
+        scale /= 1.1; 
+        repaint(); 
+    }
+
     /** 
      * LINE 
      */
     private void updateRubberBand(MouseEvent e) {
         if (currentMode == Mode.LINE && isDragging) {
-            currentX = e.getX();
-            currentY = e.getY(); 
+            int x = (int) (e.getX() / scale); 
+            int y = (int) (e.getY() / scale); 
+            currentX = x;
+            currentY = y; 
             long currentTime =  System.currentTimeMillis(); 
             long dt = currentTime - lastTime; 
             if (dt > 0) {
@@ -92,9 +107,11 @@ public class DrawingCanvas extends JPanel implements MouseListener, MouseMotionL
      * ARC 
      */
     private void updateArcRubberBand(MouseEvent e) {
-        if (currentMode == Mode.ARC && arcStage == 2 && isDragging) {
-            currentX = e.getX(); 
-            currentY = e.getY(); 
+        if (currentMode == Mode.ARC && arcStage == 2 && isDragging) { 
+            int x = (int) (e.getX() / scale); 
+            int y = (int) (e.getY() / scale); 
+            currentX = x; 
+            currentY = y; 
             // compute current angle from center to current mouse position 
             double currentAngle = Math.toDegrees(Math.atan2(arcCenterY-currentY, currentX-arcCenterX)); 
             arcSweepAngle = currentAngle - arcStartAngle; 
@@ -135,6 +152,7 @@ public class DrawingCanvas extends JPanel implements MouseListener, MouseMotionL
         super.paintComponent(g);
         // use Graphics2D for enhanced drawing 
         Graphics2D g2d = (Graphics2D) g;
+        g2d.scale(scale, scale); 
         for (GeometricObject obj : objects) {
             obj.draw(g2d);
         }
@@ -161,12 +179,30 @@ public class DrawingCanvas extends JPanel implements MouseListener, MouseMotionL
     }
     
     @Override
-    public void mouseClicked(MouseEvent e) {}
+    public void mouseClicked(MouseEvent e) {
+        // int x = e.getX();
+        // int y = e.getY();
+        // if (currentMode == Mode.POINT) {
+        //     objects.add(new PointObject(x, y));
+        // } else if (currentMode == Mode.LINE) {
+        //     if (startPoint == null) {
+        //         startPoint = new Point(x, y);
+        //     } else {
+        //         objects.add(new LineObject(startPoint.x, startPoint.y, x, y));
+        //         startPoint = null;
+        //     }
+        // } else if (currentMode == Mode.ARC) {
+        //     // For simplicity, we create an arc with a fixed radius and angles.
+        //     objects.add(new ArcObject(x, y, 50, 0, 180));
+        // }
+        // repaint();
+    }
     
     // Other mouse events (can be expanded as needed)
     @Override 
     public void mousePressed(MouseEvent e) {
-        int x = e.getX(), y = e.getY(); 
+        int x = (int) (e.getX() / scale); 
+        int y = (int) (e.getY() / scale); 
         if (currentMode == Mode.POINT) {
             objects.add(new PointObject(x, y));
             repaint(); 
@@ -265,13 +301,23 @@ public class DrawingCanvas extends JPanel implements MouseListener, MouseMotionL
 
     @Override 
     public void mouseReleased(MouseEvent e) {
-        // if (currentMode == Mode.LINE && isDragging) {
-        //     currentX = e.getX();
-        //     currentY = e.getY(); 
-        //     objects.add(new LineObject(startX, startY, currentX, currentY)); 
-        //     isDragging = false; 
-        //     repaint(); 
-        // }
+        if (currentMode == Mode.LINE && isDragging) {
+            int x = (int) (e.getX() / scale); 
+            int y = (int) (e.getY() / scale); 
+            currentX = x;
+            currentY = y; 
+            objects.add(new LineObject(startX, startY, currentX, currentY)); 
+            isDragging = false; 
+            repaint(); 
+        }
+    } 
+
+    public void mouseWheelMoved(MouseWheelEvent e) {
+        if (e. getWheelRotation() < 0) {
+            zoomIn();
+        } else {
+            zoomOut(); 
+        }
     }
 
     @Override public void mouseEntered(MouseEvent e) {}
