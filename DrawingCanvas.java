@@ -6,8 +6,12 @@ import java.util.List;
 
 public class DrawingCanvas extends JPanel implements MouseListener, MouseMotionListener {
     public enum Mode {
-        NONE, POINT, LINE, ARC, DELETE
-    }
+        NONE, POINT, LINE, ARC, DELETE, 
+        EQUAL_LENGTH 
+    } 
+
+    // reference line for equal length 
+    private LineObject referenceLineForEqLength = null; 
     
     private Mode currentMode = Mode.NONE;
     private List<GeometricObject> objects = new ArrayList<>();
@@ -41,6 +45,11 @@ public class DrawingCanvas extends JPanel implements MouseListener, MouseMotionL
     public void setMode(Mode mode) {
         this.currentMode = mode; 
         isDragging = false; 
+        arcStage = 0; 
+        if (mode != Mode.EQUAL_LENGTH) {
+            // reset 
+            referenceLineForEqLength = null; 
+        }
         repaint(); 
         System.out.println("Mode changed to: " + mode); 
     } 
@@ -152,24 +161,7 @@ public class DrawingCanvas extends JPanel implements MouseListener, MouseMotionL
     }
     
     @Override
-    public void mouseClicked(MouseEvent e) {
-        // int x = e.getX();
-        // int y = e.getY();
-        // if (currentMode == Mode.POINT) {
-        //     objects.add(new PointObject(x, y));
-        // } else if (currentMode == Mode.LINE) {
-        //     if (startPoint == null) {
-        //         startPoint = new Point(x, y);
-        //     } else {
-        //         objects.add(new LineObject(startPoint.x, startPoint.y, x, y));
-        //         startPoint = null;
-        //     }
-        // } else if (currentMode == Mode.ARC) {
-        //     // For simplicity, we create an arc with a fixed radius and angles.
-        //     objects.add(new ArcObject(x, y, 50, 0, 180));
-        // }
-        // repaint();
-    }
+    public void mouseClicked(MouseEvent e) {}
     
     // Other mouse events (can be expanded as needed)
     @Override 
@@ -223,6 +215,25 @@ public class DrawingCanvas extends JPanel implements MouseListener, MouseMotionL
                     System.out.println("Deleted object"); 
                     repaint(); 
                     break;                     
+                }
+            }
+        } else if (currentMode == Mode.EQUAL_LENGTH) {
+            // reverse iteration to check on the top-most object first 
+            for (int i = objects.size()-1; i>=0; i--) {
+                GeometricObject obj = objects.get(i); 
+                if (obj instanceof LineObject && obj.contains(x,y)) {
+                    LineObject line = (LineObject) obj; 
+                    if (referenceLineForEqLength == null) {
+                        // set as reference 
+                        referenceLineForEqLength = line; 
+                        System.out.println("ref line for equal length selected"); 
+                    } else {
+                        double refLength = referenceLineForEqLength.getLength(); 
+                        line.setLength(refLength); 
+                        System.out.println("line length adjusted"); 
+                    }
+                    repaint(); 
+                    break; 
                 }
             }
         }

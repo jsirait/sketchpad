@@ -48,6 +48,22 @@ public class LineObject extends GeometricObject{
         return distance <= tolerance;
     }
     
+    public double getLength() {
+        double dx = x2 - x1; 
+        double dy = y2 - y1; 
+        return Math.sqrt(dx*dx + dy*dy); 
+    } 
+
+    // keeps the starting point (x1, y1) fixed and scales the direction vector.
+    public void setLength(double newLength) {
+        double dx = x2 - x1;
+        double dy = y2 - y1;
+        double currentLength = getLength();
+        if (currentLength == 0) return;   // no division by zero 
+        double scale = newLength / currentLength;
+        this.x2 = x1 + (int) Math.round(dx * scale);
+        this.y2 = y1 + (int) Math.round(dy * scale);
+    }
     
     @Override
     public String toString() {
