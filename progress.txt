@@ -19,3 +19,5 @@
 04/02 
 * Begin working on constraints, specifically equal length tackled 
 
+04/04 
+* Dragging endpoint also drags lines attached to it 

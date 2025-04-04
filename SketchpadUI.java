@@ -15,10 +15,12 @@ public class SketchpadUI extends JFrame {
         JButton lineButton = new JButton("line");
         JButton arcButton = new JButton("arc");
         JButton deleteButton = new JButton("delete");
+        JButton moveButton = new JButton("move"); 
         buttonPanelTop.add(pointButton);
         buttonPanelTop.add(lineButton);
         buttonPanelTop.add(arcButton);
         buttonPanelTop.add(deleteButton); 
+        buttonPanelTop.add(moveButton); 
         
         // Bottom panel for constraint buttons
         JPanel buttonPanelBottom = new JPanel(new FlowLayout());
@@ -43,7 +45,7 @@ public class SketchpadUI extends JFrame {
         add(canvas, BorderLayout.CENTER);
         add(buttonPanelBottom, BorderLayout.SOUTH);
         
-        setSize(800, 600);
+        setSize(1000, 800);
         setLocationRelativeTo(null);
         setVisible(true);
         
@@ -52,6 +54,7 @@ public class SketchpadUI extends JFrame {
         lineButton.addActionListener(e -> canvas.setMode(DrawingCanvas.Mode.LINE));
         arcButton.addActionListener(e -> canvas.setMode(DrawingCanvas.Mode.ARC));
         deleteButton.addActionListener(e -> canvas.setMode(DrawingCanvas.Mode.DELETE));
+        moveButton.addActionListener(e -> canvas.setMode(DrawingCanvas.Mode.MOVE));
         
         // Constraint buttons - placeholders for now
         parallelButton.addActionListener(e -> System.out.println("Parallel constraint selected."));

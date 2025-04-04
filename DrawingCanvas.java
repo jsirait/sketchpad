@@ -1,4 +1,3 @@
-import javax.sound.sampled.Line;
 import javax.swing.*;
 import java.awt.*;
 import java.awt.event.*;
@@ -124,8 +123,15 @@ public class DrawingCanvas extends JPanel implements MouseListener, MouseMotionL
 
 
     private void finalizeLine() {
-        // objects.add(new LineObject(startX, startY, currentX, currentY));
-        objects.add(new LineObject(new PointObject(startX, startY), new PointObject(currentX, currentY))); 
+        // use the already-selected starting point (currentStartPoint) 
+        // and try to find an existing point for the end 
+        PointObject endPt = findNearbyPoint(currentX, currentY); 
+        if (endPt == null) {
+            endPt = new PointObject(currentX, currentY); 
+            objects.add(endPt); 
+        }
+        // create the line using the shared currentStartPoint and the endPt 
+        objects.add(new LineObject(currentStartPoint, endPt)); 
         isDragging = false; 
         repaint(); 
         System.out.println("Line is finalized from (" + startX + ", " + startY + ") to (" + currentX + ", " + currentY + ")");
@@ -355,8 +361,10 @@ public class DrawingCanvas extends JPanel implements MouseListener, MouseMotionL
             updateArcRubberBand(e); 
         } else if (currentMode == Mode.MOVE && selectedPoint != null) {
             // update point position 
-            selectedPoint.setX(e.getX()); 
-            selectedPoint.setY(e.getY()); 
+            int newX = (int) (e.getX() / scale); 
+            int newY = (int) (e.getY() / scale); 
+            selectedPoint.setX(newX); 
+            selectedPoint.setY(newY); 
             repaint(); 
         }
     }
@@ -375,14 +383,7 @@ public class DrawingCanvas extends JPanel implements MouseListener, MouseMotionL
     @Override 
     public void mouseReleased(MouseEvent e) {
         if (currentMode == Mode.LINE && isDragging) {
-            int x = (int) (e.getX() / scale); 
-            int y = (int) (e.getY() / scale); 
-            currentX = x;
-            currentY = y; 
-            // objects.add(new LineObject(startX, startY, currentX, currentY)); 
-            objects.add(new LineObject(new PointObject(startX, startY), new PointObject(currentX, currentY))); 
-            isDragging = false; 
-            repaint(); 
+            finalizeLine(); 
         } else if (currentMode == Mode.MOVE){
             selectedPoint = null; 
         }
