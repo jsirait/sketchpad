@@ -7,7 +7,8 @@ import java.util.List;
 public class DrawingCanvas extends JPanel implements MouseListener, MouseMotionListener {
     public enum Mode {
         NONE, POINT, LINE, ARC, DELETE, 
-        EQUAL_LENGTH 
+        EQUAL_LENGTH, 
+        MOVE 
     } 
 
     // reference line for equal length 
@@ -21,8 +22,13 @@ public class DrawingCanvas extends JPanel implements MouseListener, MouseMotionL
     private double scale = 1.0; 
 
     // make drawing a line be like dragging a rubber band 
-    private int startX, startY, currentX, currentY;
+    private int startX, startY; 
+    private int currentX, currentY;
+    private PointObject currentStartPoint = null;  // for a line 
     private boolean isDragging = false; 
+
+    // field to hold the selected point for dragging 
+    private PointObject selectedPoint = null; 
 
     // flick detection 
     private int lastX, lastY; 
@@ -97,10 +103,24 @@ public class DrawingCanvas extends JPanel implements MouseListener, MouseMotionL
 
 
     private void finalizeLine() {
-        objects.add(new LineObject(startX, startY, currentX, currentY));
+        // objects.add(new LineObject(startX, startY, currentX, currentY));
+        objects.add(new LineObject(new PointObject(startX, startY), new PointObject(currentX, currentY))); 
         isDragging = false; 
         repaint(); 
         System.out.println("Line is finalized from (" + startX + ", " + startY + ") to (" + currentX + ", " + currentY + ")");
+    } 
+
+    private PointObject findNearbyPoint(int x, int y) {
+        // look through all objects for a point close to (x,y) 
+        for (GeometricObject obj : objects) {
+            if (obj instanceof PointObject) {
+                PointObject pt = (PointObject) obj; 
+                if (pt.contains(x,y)) {
+                    return pt; 
+                }
+            }
+        } 
+        return null; 
     }
 
     /** 
@@ -207,21 +227,37 @@ public class DrawingCanvas extends JPanel implements MouseListener, MouseMotionL
             objects.add(new PointObject(x, y));
             repaint(); 
         } else if (currentMode == Mode.LINE) {
-            // // rubber band 
-            // startX = x; 
-            // startY = y; 
-            // isDragging = true; 
             if (!isDragging) {
+                // first click try to snap to an existing point 
                 // initialize the starting point for the rubber band line 
-                startX = x; 
-                startY = y; 
+                PointObject pt = findNearbyPoint(x, y); 
+                if (pt == null) {
+                    pt = new PointObject(x, y);
+                    objects.add(pt); 
+                }
+                startX = pt.getX(); 
+                startY = pt.getY(); 
                 currentX = startX;
                 currentY = startY; 
+                currentStartPoint = pt; 
                 isDragging = true; 
                 // initialize flick detection 
                 lastX = currentX; 
                 lastY = currentY; 
                 lastTime = System.currentTimeMillis(); 
+            } else {
+                // second click try to snap to an existing point 
+                PointObject pt = findNearbyPoint(x, y); 
+                if (pt == null) {
+                    pt = new PointObject(x, y); 
+                    objects.add(pt); 
+                } 
+                // create a line that connects the currentStartPoint and the new pt 
+                LineObject line = new LineObject(currentStartPoint, pt); 
+                objects.add(line); 
+                isDragging = false; 
+                currentStartPoint = null; 
+                repaint(); 
             }
         } else if (currentMode == Mode.ARC) {
             if (arcStage == 0) {
@@ -272,19 +308,25 @@ public class DrawingCanvas extends JPanel implements MouseListener, MouseMotionL
                     break; 
                 }
             }
+        } else if (currentMode == Mode.MOVE) {
+            PointObject pt = findNearbyPoint(x, y); 
+            if (pt != null) {
+                selectedPoint = pt; 
+            }
         }
     } 
 
     @Override 
     public void mouseDragged(MouseEvent e) {
         if (currentMode == Mode.LINE && isDragging) {
-            // // update 
-            // currentX = e.getX();
-            // currentY = e.getY();
-            // repaint(); 
             updateRubberBand(e); 
         } else if (currentMode == Mode.ARC && isDragging) {
             updateArcRubberBand(e); 
+        } else if (currentMode == Mode.MOVE && selectedPoint != null) {
+            // update point position 
+            selectedPoint.setX(e.getX()); 
+            selectedPoint.setY(e.getY()); 
+            repaint(); 
         }
     }
 
@@ -306,9 +348,12 @@ public class DrawingCanvas extends JPanel implements MouseListener, MouseMotionL
             int y = (int) (e.getY() / scale); 
             currentX = x;
             currentY = y; 
-            objects.add(new LineObject(startX, startY, currentX, currentY)); 
+            // objects.add(new LineObject(startX, startY, currentX, currentY)); 
+            objects.add(new LineObject(new PointObject(startX, startY), new PointObject(currentX, currentY))); 
             isDragging = false; 
             repaint(); 
+        } else if (currentMode == Mode.MOVE){
+            selectedPoint = null; 
         }
     } 
 

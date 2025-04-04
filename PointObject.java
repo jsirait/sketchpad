@@ -3,12 +3,18 @@ import java.awt.Graphics2D;
 
 public class PointObject extends GeometricObject {
     private int x,y;
-    private static final int SIZE = 6; 
+    private static final int SIZE = 5; 
 
     public PointObject(int x, int y) {
         this.x = x;
         this.y = y;
-    }
+    } 
+
+    // getters and setters 
+    public int getX() { return x; } 
+    public int getY() { return y; } 
+    public void setX(int x) { this.x = x; } 
+    public void setY(int y) { this.y = y; } 
 
     @Override
     public void draw(Graphics2D g2d) {
@@ -18,7 +24,7 @@ public class PointObject extends GeometricObject {
 
     @Override 
     public boolean contains(int px, int py) {
-        int tolerance = 5; 
+        int tolerance = 10; 
         int dx = px - x; 
         int dy = py - y; 
         return dx*dx + dy*dy <= tolerance*tolerance; 

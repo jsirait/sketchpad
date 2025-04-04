@@ -15,3 +15,7 @@
 03/31 
 * Make progress with arc; need to be 360 degrees 
 * Deleting arc is a bit iffy still 
+
+04/02 
+* Begin working on constraints, specifically equal length tackled 
+
