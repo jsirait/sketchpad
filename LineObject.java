@@ -45,17 +45,19 @@ public class LineObject extends GeometricObject{
 
     // keeps the starting point (x1, y1) fixed and scales the direction vector.
     public void setLength(double newLength) {
-        int x1 = startPoint.getX(), y1 = startPoint.getY(); 
-        int x2 = endPoint.getX(), y2 = endPoint.getY(); 
-        double dx = x2 - x1;
-        double dy = y2 - y1;
-        double currentLength = getLength();
-        if (currentLength == 0) return;   // no division by zero 
-        double scale = newLength / currentLength;
-        int x2New = x1 + (int) Math.round(dx * scale);
-        int y2New = y1 + (int) Math.round(dy * scale); 
-        endPoint.setX(x2New); 
-        endPoint.setY(y2New); 
+        int x1 = startPoint.getX();
+        int y1 = startPoint.getY();
+        int currentX2 = endPoint.getX();
+        int currentY2 = endPoint.getY();
+        double dx = currentX2 - x1;
+        double dy = currentY2 - y1;
+        double currentLength = Math.sqrt(dx * dx + dy * dy);
+        if (currentLength == 0) return;
+        double scaleFactor = newLength / currentLength;
+        int newX2 = x1 + (int) Math.round(dx * scaleFactor);
+        int newY2 = y1 + (int) Math.round(dy * scaleFactor);
+        // Detach the endpoint: create a new PointObject for this line.
+        this.endPoint = new PointObject(newX2, newY2);
     }
     
     @Override

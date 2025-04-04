@@ -1,8 +1,11 @@
+import javax.sound.sampled.Line;
 import javax.swing.*;
 import java.awt.*;
 import java.awt.event.*;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Set;
+import java.util.HashSet; 
 
 public class DrawingCanvas extends JPanel implements MouseListener, MouseMotionListener {
     public enum Mode {
@@ -71,6 +74,24 @@ public class DrawingCanvas extends JPanel implements MouseListener, MouseMotionL
     public void zoomOut() {
         scale /= 1.1; 
         repaint(); 
+    }
+
+    /** 
+    * POINT
+    */ 
+    private void cleanupLeftoverPoints() {
+        // create a set of points that are used by any line 
+        Set <PointObject> usedPoints = new HashSet<>(); 
+        for (GeometricObject obj : objects) {
+            if (obj instanceof LineObject) {
+                LineObject line = (LineObject) obj; 
+                usedPoints.add(line.getStartPoint()); 
+                usedPoints.add(line.getEndPoint()); 
+            }
+        } 
+
+        // remove points that are not used by any line 
+        objects.removeIf(obj -> (obj instanceof PointObject) && !usedPoints.contains((obj))); 
     }
 
     /** 
@@ -282,11 +303,21 @@ public class DrawingCanvas extends JPanel implements MouseListener, MouseMotionL
             // iterate in reverse order so that objects on top are checked first 
             for (int i = objects.size() - 1; i>=0; i--) {
                 GeometricObject obj = objects.get(i); 
-                if (obj.contains(x,y)) {
-                    objects.remove(i); 
-                    System.out.println("Deleted object"); 
-                    repaint(); 
-                    break;                     
+                if (obj.contains(x,y)) { 
+                    // logic for line 
+                    if (obj instanceof LineObject) {
+                        objects.remove(i); 
+                        System.out.println("deleted line"); 
+                        cleanupLeftoverPoints(); 
+                        repaint(); 
+                        break; 
+                    } else { 
+                        // perhaps other logic for other objects 
+                        objects.remove(i); 
+                        System.out.println("Deleted object"); 
+                        repaint(); 
+                        break; 
+                    }
                 }
             }
         } else if (currentMode == Mode.EQUAL_LENGTH) {

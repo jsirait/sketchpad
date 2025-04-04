@@ -28,6 +28,19 @@ public class PointObject extends GeometricObject {
         int dx = px - x; 
         int dy = py - y; 
         return dx*dx + dy*dy <= tolerance*tolerance; 
+    } 
+
+    @Override 
+    public int hashCode() {
+        return 31 * x + y; 
+    } 
+
+    @Override 
+    public boolean equals(Object o) {
+        if (this == o) return true; 
+        if (!(o instanceof PointObject)) return false; 
+        PointObject p = (PointObject) o; 
+        return this.x == p.x && this.y == p.y; 
     }
 
     @Override 
