@@ -7,7 +7,9 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.HashSet; 
+import java.util.Queue;
+import java.util.HashSet;
+import java.util.LinkedList; 
 
 public class DrawingCanvas extends JPanel implements MouseListener, MouseMotionListener {
     public enum Mode {
@@ -210,104 +212,176 @@ public class DrawingCanvas extends JPanel implements MouseListener, MouseMotionL
     }
     
     // Finalize equal-length constraint iteratively until convergence.
-// Inside DrawingCanvas.java
+    // Helper class for pairing a point with its polar angle (for sorting)
+    private static class PointAngle {
+        public PointObject pt;
+        public double angle;
+        public PointAngle(PointObject pt, double angle) {
+            this.pt = pt;
+            this.angle = angle;
+        }
+    }
 
-// Helper class for sorting vertices by angle
-private static class PointAngle {
-    public PointObject pt;
-    public double angle;
-    public PointAngle(PointObject pt, double angle) {
-        this.pt = pt;
-        this.angle = angle;
+    // Helper: Given the set of vertices and an incidence map (each point with its lines),
+    // find connected components (each component is a set of points).
+    private List<Set<PointObject>> findConnectedComponents(Set<PointObject> vertices,
+                                                        Map<PointObject, Set<LineObject>> incidence) {
+        List<Set<PointObject>> components = new ArrayList<>();
+        Set<PointObject> visited = new HashSet<>();
+        for (PointObject pt : vertices) {
+            if (!visited.contains(pt)) {
+                Set<PointObject> comp = new HashSet<>();
+                Queue<PointObject> queue = new LinkedList<>();
+                queue.add(pt);
+                visited.add(pt);
+                while (!queue.isEmpty()) {
+                    PointObject cur = queue.poll();
+                    comp.add(cur);
+                    // For each line incident to cur, add the other endpoint.
+                    for (LineObject line : incidence.get(cur)) {
+                        PointObject other = line.getStartPoint().equals(cur) ? line.getEndPoint() : line.getStartPoint();
+                        if (!visited.contains(other)) {
+                            visited.add(other);
+                            queue.add(other);
+                        }
+                    }
+                }
+                components.add(comp);
+            }
+        }
+        return components;
     }
-}
 
-public void finalizeEqualLengthConstraint() {
-    // First, check if we have exactly three lines that form a triangle.
-    Set<PointObject> triangleVertices = new HashSet<>();
-    for (LineObject line : selectedEqualLengthLines) {
-        triangleVertices.add(line.getStartPoint());
-        triangleVertices.add(line.getEndPoint());
-    }
-    if (triangleVertices.size() != 3) {
-        System.out.println("Please select three lines that form a closed triangle.");
-        return;
-    }
-    
-    // Extract the three vertices into a list.
-    List<PointObject> triPoints = new ArrayList<>(triangleVertices);
-    
-    // Iterative projection to an equilateral triangle.
-    final int maxIterations = 50;
-    final double tolerance = 0.001;
-    for (int iter = 0; iter < maxIterations; iter++) {
-        // Compute the centroid of the triangle.
-        double sumX = 0, sumY = 0;
-        for (PointObject pt : triPoints) {
-            sumX += pt.getX();
-            sumY += pt.getY();
-        }
-        double centerX = sumX / 3.0;
-        double centerY = sumY / 3.0;
-        
-        // Create a list of points paired with their angle relative to the centroid.
-        List<PointAngle> paList = new ArrayList<>();
-        for (PointObject pt : triPoints) {
-            double angle = Math.atan2(pt.getY() - centerY, pt.getX() - centerX);
-            paList.add(new PointAngle(pt, angle));
-        }
-        // Sort by angle so the vertices are ordered clockwise (or counterclockwise)
-        Collections.sort(paList, (p1, p2) -> Double.compare(p1.angle, p2.angle));
-        // Reconstruct the sorted list of points.
-        for (int i = 0; i < 3; i++) {
-            triPoints.set(i, paList.get(i).pt);
+    public void finalizeEqualLengthConstraint() {
+        // Build an incidence map: for each point, which selected lines touch it.
+        Set<PointObject> vertexSet = new HashSet<>();
+        Map<PointObject, Set<LineObject>> incidence = new HashMap<>();
+        for (LineObject line : selectedEqualLengthLines) {
+            PointObject A = line.getStartPoint();
+            PointObject B = line.getEndPoint();
+            vertexSet.add(A);
+            vertexSet.add(B);
+            incidence.computeIfAbsent(A, k -> new HashSet<>()).add(line);
+            incidence.computeIfAbsent(B, k -> new HashSet<>()).add(line);
         }
         
-        // Compute current side lengths.
-        PointObject A = triPoints.get(0);
-        PointObject B = triPoints.get(1);
-        PointObject C = triPoints.get(2);
-        double L_AB = Math.hypot(B.getX() - A.getX(), B.getY() - A.getY());
-        double L_BC = Math.hypot(C.getX() - B.getX(), C.getY() - B.getY());
-        double L_CA = Math.hypot(A.getX() - C.getX(), A.getY() - C.getY());
-        double avgSide = (L_AB + L_BC + L_CA) / 3.0;
-        // In an equilateral triangle, the distance from the centroid to a vertex is L/√3.
-        double R_ideal = avgSide / Math.sqrt(3);
+        // Compute connected components from the vertex set.
+        List<Set<PointObject>> components = findConnectedComponents(vertexSet, incidence);
         
-        // Use the angle of the first vertex as a base.
-        double baseAngle = Math.atan2(triPoints.get(0).getY() - centerY, triPoints.get(0).getX() - centerX);
-        double[] targetAngles = new double[] {
-            baseAngle,
-            baseAngle + 2 * Math.PI / 3,
-            baseAngle + 4 * Math.PI / 3
-        };
-        
-        // Update each vertex toward its target location.
-        double maxMovement = 0;
-        for (int i = 0; i < 3; i++) {
-            double targetX = centerX + R_ideal * Math.cos(targetAngles[i]);
-            double targetY = centerY + R_ideal * Math.sin(targetAngles[i]);
-            PointObject pt = triPoints.get(i);
-            double dx = targetX - pt.getX();
-            double dy = targetY - pt.getY();
-            double movement = Math.hypot(dx, dy);
-            maxMovement = Math.max(maxMovement, movement);
-            // Update the point. (Here, we update directly then inform the Cassowary-based manager.)
-            pt.setX((int)Math.round(targetX));
-            pt.setY((int)Math.round(targetY));
-            solverManager.updatePoint(pt);
+        // Iterate over each connected component.
+        for (Set<PointObject> comp : components) {
+            // Collect all lines for this component.
+            Set<LineObject> compLines = new HashSet<>();
+            for (PointObject pt : comp) {
+                if (incidence.containsKey(pt)) {
+                    compLines.addAll(incidence.get(pt));
+                }
+            }
+            // Compute the average side length for the component.
+            double total = 0;
+            for (LineObject line : compLines) {
+                total += line.getLength();
+            }
+            double avgLength = total / compLines.size();
+            
+            // Check if the component forms a closed polygon:
+            // every vertex should have exactly degree 2 and at least 3 points must be involved.
+            boolean closed = true;
+            for (PointObject pt : comp) {
+                if (incidence.get(pt).size() != 2) {
+                    closed = false;
+                    break;
+                }
+            }
+            if (closed && comp.size() >= 3) {
+                // --- Closed Polygon: Project vertices onto a circle to form a regular polygon ---
+                
+                // Compute the centroid.
+                double sumX = 0, sumY = 0;
+                for (PointObject pt : comp) {
+                    sumX += pt.getX();
+                    sumY += pt.getY();
+                }
+                double centerX = sumX / comp.size();
+                double centerY = sumY / comp.size();
+                
+                // Order the vertices in angular order around the centroid.
+                List<PointAngle> paList = new ArrayList<>();
+                for (PointObject pt : comp) {
+                    double angle = Math.atan2(pt.getY() - centerY, pt.getX() - centerX);
+                    paList.add(new PointAngle(pt, angle));
+                }
+                Collections.sort(paList, (p1, p2) -> Double.compare(p1.angle, p2.angle));
+                
+                // For an n-sided regular polygon, the side length L relates to the circumradius R via:
+                // L = 2 * R * sin(PI/n)   so R = L / (2*sin(PI/n))
+                int n = comp.size();
+                double R = avgLength / (2 * Math.sin(Math.PI / n));
+                
+                // Use the angle of the first vertex as a base.
+                double baseAngle = paList.get(0).angle;
+                for (int i = 0; i < n; i++) {
+                    double targetAngle = baseAngle + 2 * Math.PI * i / n;
+                    PointObject pt = paList.get(i).pt;
+                    double targetX = centerX + R * Math.cos(targetAngle);
+                    double targetY = centerY + R * Math.sin(targetAngle);
+                    pt.setX((int) Math.round(targetX));
+                    pt.setY((int) Math.round(targetY));
+                    solverManager.updatePoint(pt);
+                }
+            } else {
+                // --- Open or non-closed components ---
+                // For each selected line, compute the correction needed so that the line’s length moves
+                // toward the average. Distribute the correction (half to one endpoint, half to the other).
+                
+                // Use a map to accumulate corrections for each point:
+                // The value is an array of [sumXCorrection, sumYCorrection, count].
+                Map<PointObject, double[]> corrections = new HashMap<>();
+                for (LineObject line : compLines) {
+                    PointObject A = line.getStartPoint();
+                    PointObject B = line.getEndPoint();
+                    double currentLen = line.getLength();
+                    if (currentLen == 0) continue;
+                    double error = currentLen - avgLength;
+                    double dx = (B.getX() - A.getX()) / currentLen;
+                    double dy = (B.getY() - A.getY()) / currentLen;
+                    // Correction: move A opposite the direction and B in the direction by half of the error.
+                    double corrAx = -0.5 * error * dx;
+                    double corrAy = -0.5 * error * dy;
+                    double corrBx = 0.5 * error * dx;
+                    double corrBy = 0.5 * error * dy;
+                    
+                    corrections.computeIfAbsent(A, k -> new double[]{0, 0, 0});
+                    double[] aCorr = corrections.get(A);
+                    aCorr[0] += corrAx;
+                    aCorr[1] += corrAy;
+                    aCorr[2] += 1;
+                    
+                    corrections.computeIfAbsent(B, k -> new double[]{0, 0, 0});
+                    double[] bCorr = corrections.get(B);
+                    bCorr[0] += corrBx;
+                    bCorr[1] += corrBy;
+                    bCorr[2] += 1;
+                }
+                // Apply average correction for each point.
+                for (Map.Entry<PointObject, double[]> entry : corrections.entrySet()) {
+                    PointObject pt = entry.getKey();
+                    double[] arr = entry.getValue();
+                    double avgCorrX = arr[0] / arr[2];
+                    double avgCorrY = arr[1] / arr[2];
+                    pt.setX((int) Math.round(pt.getX() + avgCorrX));
+                    pt.setY((int) Math.round(pt.getY() + avgCorrY));
+                    solverManager.updatePoint(pt);
+                }
+            }
         }
+        // Tell the solver to update all point positions.
         solverManager.solve();
-        if (maxMovement < tolerance) {
-            break;
-        }
+        selectedEqualLengthLines.clear();
+        repaint();
+        System.out.println("Equal length constraint applied.");
     }
-    
-    // After convergence, clear the selection and repaint the canvas.
-    selectedEqualLengthLines.clear();
-    repaint();
-    System.out.println("Equilateral triangle constraint applied.");
-}
+
 
 
     /** 
