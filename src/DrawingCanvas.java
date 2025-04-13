@@ -459,6 +459,60 @@ public class DrawingCanvas extends JPanel implements MouseListener, MouseMotionL
         System.out.println("arc drawn"); 
     }
 
+    /**
+     * Merges points that are extremely close together (within a threshold).
+     * After merging, all lines that referenced the removed point are updated.
+     * Also updates the constraint solver by removing the merged point.
+     */
+    private void mergeClosePoints() {
+        final double mergeThreshold = 5.0; // in pixels
+        
+        // Gather all PointObjects.
+        List<PointObject> points = new ArrayList<>();
+        for (GeometricObject obj : objects) {
+            if (obj instanceof PointObject) {
+                points.add((PointObject) obj);
+            }
+        }
+        
+        for (int i = 0; i < points.size(); i++) {
+            PointObject p1 = points.get(i);
+            for (int j = i + 1; j < points.size(); j++) {
+                PointObject p2 = points.get(j);
+                double dx = p1.getX() - p2.getX();
+                double dy = p1.getY() - p2.getY();
+                if (Math.hypot(dx, dy) < mergeThreshold) {
+                    // Merge p2 into p1 by averaging positions.
+                    int avgX = (p1.getX() + p2.getX()) / 2;
+                    int avgY = (p1.getY() + p2.getY()) / 2;
+                    p1.setX(avgX);
+                    p1.setY(avgY);
+                    
+                    // Update all LineObjects that reference p2.
+                    for (GeometricObject obj : objects) {
+                        if (obj instanceof LineObject) {
+                            LineObject line = (LineObject) obj;
+                            if (line.getStartPoint().equals(p2)) {
+                                line.setStartPoint(p1);
+                            }
+                            if (line.getEndPoint().equals(p2)) {
+                                line.setEndPoint(p1);
+                            }
+                        }
+                    }
+                    
+                    // Remove p2 from the constraint solver.
+                    solverManager.removePoint(p2);
+                    // Remove p2 from the objects list.
+                    objects.remove(p2);
+                    // Also remove from local points list.
+                    points.remove(j);
+                    j--; // Adjust index after removal.
+                }
+            }
+        }
+    }
+
     @Override
     protected void paintComponent(Graphics g) {
         super.paintComponent(g);
@@ -632,6 +686,7 @@ public class DrawingCanvas extends JPanel implements MouseListener, MouseMotionL
         if (currentMode == Mode.LINE && isDragging) {
             finalizeLine(); 
         } else if (currentMode == Mode.MOVE){
+            mergeClosePoints(); 
             selectedPoint = null; 
         }
     } 

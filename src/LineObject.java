@@ -19,10 +19,9 @@ public class LineObject extends GeometricObject {
         return endPoint;
     }
     
-    // Allow the endPoint to be replaced
-    public void setEndPoint(PointObject pt) {
-        this.endPoint = pt;
-    }
+    // Allow the endPoint startPoint to be replaced
+    public void setEndPoint(PointObject pt)  { this.endPoint = pt; }
+    public void setStartPoint(PointObject pt)  { this.startPoint = pt; }
     
     @Override
     public void draw(Graphics2D g2d) {

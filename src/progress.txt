@@ -1,23 +1,2 @@
-03/29
-* Dots look good and I might increase size 
-* Lines looks good and is rubber band
-* Arc does not work yet because not handled 
-* Change of mode needs to be better because it works the best when line to point but 
-   the reverse needs to be better 
-* Constraints not yet implemented 
-* Need to implement delete button 
-
-03/30 
-* Flicking works but perhaps endpoint can be more precise 
-* Does Sketchpad allow for selecting object and moving the object? 
-* Deleting point and line works 
-
-03/31 
 * Make progress with arc; need to be 360 degrees 
-* Deleting arc is a bit iffy still 
-
-04/02 
-* Begin working on constraints, specifically equal length tackled 
-
-04/04 
-* Dragging endpoint also drags lines attached to it 
+* Equal length doesn't work yet if the lines do not share a point 

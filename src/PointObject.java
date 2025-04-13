@@ -2,17 +2,21 @@ import java.awt.Color;
 import java.awt.Graphics2D;
 
 public class PointObject extends GeometricObject {
-    private int x,y;
+    private int x,y; 
+    private final int id; 
+    private static int counter = 0; 
     private static final int SIZE = 5; 
 
     public PointObject(int x, int y) {
         this.x = x;
-        this.y = y;
+        this.y = y; 
+        this.id = counter++; 
     } 
 
     // getters and setters 
     public int getX() { return x; } 
     public int getY() { return y; } 
+    public int getId()  { return this.id; } 
     public void setX(int x) { this.x = x; } 
     public void setY(int y) { this.y = y; } 
 
@@ -32,7 +36,8 @@ public class PointObject extends GeometricObject {
 
     @Override 
     public int hashCode() {
-        return 31 * x + y; 
+        // return 31 * x + y; 
+        return id;  
     } 
 
     @Override 
@@ -40,7 +45,8 @@ public class PointObject extends GeometricObject {
         if (this == o) return true; 
         if (!(o instanceof PointObject)) return false; 
         PointObject p = (PointObject) o; 
-        return this.x == p.x && this.y == p.y; 
+        // return this.x == p.x && this.y == p.y; 
+        return this.id == p.id;  
     }
 
     @Override 

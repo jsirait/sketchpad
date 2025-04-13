@@ -1,4 +1,3 @@
-// ConstraintSolverManager.java
 import org.pybee.cassowary.Variable;
 import org.pybee.cassowary.SimplexSolver;
 import org.pybee.cassowary.Expression;
@@ -30,8 +29,9 @@ public class ConstraintSolverManager {
     public void addPoint(PointObject pt) {
         if (pointVarsMap.containsKey(pt))
             return;
-        Variable vx = new Variable("x" + pt.hashCode());
-        Variable vy = new Variable("y" + pt.hashCode());
+        // Use the unique id instead of hashCode() based on mutable values.
+        Variable vx = new Variable("x" + pt.getId());
+        Variable vy = new Variable("y" + pt.getId());
         solver.addEditVar(vx, Strength.STRONG);
         solver.addEditVar(vy, Strength.STRONG);
         try {
@@ -56,6 +56,15 @@ public class ConstraintSolverManager {
         }
     }
     
+    // Remove a point from the constraint solver's mapping.
+    public void removePoint(PointObject pt) {
+        if (!pointVarsMap.containsKey(pt)) {
+            return;
+        }
+        // If the solver supported removal of edit variables, you could do that here.
+        pointVarsMap.remove(pt);
+    }
+    
     // Update all points from the solver's current values.
     public void updateAllPointsFromSolver() {
         for (Map.Entry<PointObject, PointVars> entry : pointVarsMap.entrySet()) {
@@ -74,7 +83,7 @@ public class ConstraintSolverManager {
     public void addConstraint(AbstractConstraint constraint) {
         try {
             solver.addConstraint(constraint);
-        } catch (Exception e) { // e.g. RequiredFailure
+        } catch (Exception e) { // e.g., RequiredFailure
             e.printStackTrace();
         }
     }
