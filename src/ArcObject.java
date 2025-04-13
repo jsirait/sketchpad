@@ -17,10 +17,10 @@ public class ArcObject extends GeometricObject {
         g.drawArc(x, y, width, height, startAngle, arcAngle);
     }
     
-    // Approximate hit-testing for an arc.
+    // Approximate hit-testing for an arc -- for deleting purposes 
     @Override
     public boolean contains(int px, int py) {
-        // Compute center and radii.
+        // compute center and radius
         double cx = x + width / 2.0;
         double cy = y + height / 2.0;
         double rx = width / 2.0;

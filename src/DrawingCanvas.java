@@ -48,6 +48,8 @@ public class DrawingCanvas extends JPanel implements MouseListener, MouseMotionL
     private int arcRadius; 
     private double arcStartAngle, arcSweepAngle; 
     private int arcStage = 0;
+    private double accumulatedSweepAngle = 0; 
+    private Double previousAngle = null; // enable null checking as object 
 
     public DrawingCanvas() {
         addMouseListener(this);
@@ -167,7 +169,22 @@ public class DrawingCanvas extends JPanel implements MouseListener, MouseMotionL
             currentY = y; 
             // compute current angle from center to current mouse position 
             double currentAngle = Math.toDegrees(Math.atan2(arcCenterY-currentY, currentX-arcCenterX)); 
-            arcSweepAngle = currentAngle - arcStartAngle; 
+            // if this is the first movement event to draw an arc, initialize previousAngle 
+            if (previousAngle == null) {
+                previousAngle = currentAngle; 
+            } 
+            // compute the incremental change in angle 
+            double delta = currentAngle - previousAngle; 
+            // normalization 
+            if (delta < -180) {
+                delta += 360;
+            } else if (delta > 180) {
+                delta -= 360; 
+            } 
+            accumulatedSweepAngle += delta; 
+            previousAngle = currentAngle; 
+
+            // arcSweepAngle = currentAngle - arcStartAngle; 
             // flick 
             long currentTime = System.currentTimeMillis(); 
             long dt = currentTime - lastTime; 
@@ -184,6 +201,8 @@ public class DrawingCanvas extends JPanel implements MouseListener, MouseMotionL
             lastX = currentX;
             lastY = currentY; 
             lastTime = currentTime; 
+
+            arcSweepAngle = accumulatedSweepAngle; 
             repaint(); 
         }
     }
@@ -196,6 +215,8 @@ public class DrawingCanvas extends JPanel implements MouseListener, MouseMotionL
         objects.add(new ArcObject(x, y, diameter, diameter, (int)arcStartAngle, (int)arcSweepAngle)); 
         isDragging = false; 
         arcStage = 0; 
+        previousAngle = null; 
+        accumulatedSweepAngle = 0; 
         repaint(); 
         System.out.println("arc drawn"); 
     }
