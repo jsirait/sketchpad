@@ -59,8 +59,15 @@ public class SketchpadUI extends JFrame {
         // Constraint buttons - placeholders for now
         parallelButton.addActionListener(e -> System.out.println("Parallel constraint selected."));
         equalLengthButton.addActionListener(e -> {
-            canvas.setMode(DrawingCanvas.Mode.EQUAL_LENGTH); 
-            System.out.println("Equal Length constraint selected."); 
+            if (canvas.getMode() == DrawingCanvas.Mode.EQUAL_LENGTH) {
+                // already in the mode just need to finalize 
+                canvas.finalizeEqualLengthConstraint(); 
+                canvas.setMode(DrawingCanvas.Mode.NONE); 
+            } else {
+                canvas.setMode(DrawingCanvas.Mode.EQUAL_LENGTH); 
+                System.out.println("Equal Length constraint selected."); 
+            }
+            
         });
         coincideButton.addActionListener(e -> System.out.println("Coincide constraint selected."));
         perpendicularButton.addActionListener(e -> System.out.println("Perpendicular constraint selected."));

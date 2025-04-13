@@ -2,7 +2,9 @@ import javax.swing.*;
 import java.awt.*;
 import java.awt.event.*;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.HashSet; 
 
@@ -13,8 +15,12 @@ public class DrawingCanvas extends JPanel implements MouseListener, MouseMotionL
         MOVE 
     } 
 
+    private ConstraintSolverManager solverManager = new ConstraintSolverManager(); 
+
     // reference line for equal length 
-    private LineObject referenceLineForEqLength = null; 
+    // private LineObject referenceLineForEqLength = null; 
+    private List<LineObject> selectedEqualLengthLines = new ArrayList<>();
+    
     
     private Mode currentMode = Mode.NONE;
     private List<GeometricObject> objects = new ArrayList<>();
@@ -51,6 +57,11 @@ public class DrawingCanvas extends JPanel implements MouseListener, MouseMotionL
     public DrawingCanvas() {
         addMouseListener(this);
         addMouseMotionListener(this);
+        // addMouseWheelListener(this);
+    }
+
+    public Mode getMode() {
+        return this.currentMode; 
     }
     
     public void setMode(Mode mode) {
@@ -59,21 +70,16 @@ public class DrawingCanvas extends JPanel implements MouseListener, MouseMotionL
         arcStage = 0; 
         if (mode != Mode.EQUAL_LENGTH) {
             // reset 
-            referenceLineForEqLength = null; 
+            // referenceLineForEqLength = null;  
+            selectedEqualLengthLines.clear(); 
         }
         repaint(); 
         System.out.println("Mode changed to: " + mode); 
     } 
 
-    public void zoomIn() {
-        scale *= 1.1; 
-        repaint(); 
-    } 
+    public void zoomIn()  { scale *= 1.1;  repaint(); } 
 
-    public void zoomOut() {
-        scale /= 1.1; 
-        repaint(); 
-    }
+    public void zoomOut()  { scale /= 1.1; repaint(); }
 
     /** 
     * POINT
@@ -148,6 +154,87 @@ public class DrawingCanvas extends JPanel implements MouseListener, MouseMotionL
             }
         } 
         return null; 
+    } 
+
+    // --- Iterative enforcement of equal lengths on selected lines ---
+    // This method adjusts the endpoints for all selected lines so that their lengths converge to a common average.
+    public void enforceEqualLengthConstraintOnSelectedLines() {
+        // First, compute the average length of the selected lines.
+        int n = selectedEqualLengthLines.size();
+        if (n == 0) return;
+        double total = 0;
+        for (LineObject L : selectedEqualLengthLines) {
+            total += L.getLength();
+        }
+        double avgLength = total / n;
+        
+        // Map each unique vertex to a list of desired target positions.
+        Map<PointObject, List<PointObject>> corrections = new HashMap<>();
+        
+        for (LineObject L : selectedEqualLengthLines) {
+            PointObject A = L.getStartPoint();
+            PointObject B = L.getEndPoint();
+            double currentLength = L.getLength();
+            if (currentLength == 0) continue;
+            double error = currentLength - avgLength;
+            // Compute unit vector from A to B.
+            double dx = B.getX() - A.getX();
+            double dy = B.getY() - A.getY();
+            double ux = dx / currentLength;
+            double uy = dy / currentLength;
+            // We decide to adjust both endpoints by half the correction.
+            // For A: new target = A - (error/2)*u, for B: new target = B + (error/2)*u.
+            double corr = error / 2.0;
+            PointObject targetA = new PointObject((int) (A.getX() - corr * ux), (int) (A.getY() - corr * uy));
+            PointObject targetB = new PointObject((int) (B.getX() + corr * ux), (int) (B.getY() + corr * uy));
+            
+            corrections.computeIfAbsent(A, k -> new ArrayList<>()).add(targetA);
+            corrections.computeIfAbsent(B, k -> new ArrayList<>()).add(targetB);
+        }
+        // For each vertex, average all target positions and update it.
+        for (Map.Entry<PointObject, List<PointObject>> entry : corrections.entrySet()) {
+            PointObject pt = entry.getKey();
+            List<PointObject> targets = entry.getValue();
+            double sumX = 0, sumY = 0;
+            for (PointObject target : targets) {
+                sumX += target.getX();
+                sumY += target.getY();
+            }
+            double newX = sumX / targets.size();
+            double newY = sumY / targets.size();
+            pt.setX((int)Math.round(newX));
+            pt.setY((int)Math.round(newY));
+            solverManager.updatePoint(pt);
+        }
+        solverManager.solve();
+        repaint();
+    }
+    
+    // Finalize equal-length constraint iteratively until convergence.
+    public void finalizeEqualLengthConstraint() {
+        final int maxIterations = 50;
+        final double tolerance = 0.5;
+        for (int iter = 0; iter < maxIterations; iter++) {
+            // Calculate the average and maximum deviation.
+            double total = 0;
+            int n = selectedEqualLengthLines.size();
+            for (LineObject L : selectedEqualLengthLines) {
+                total += L.getLength();
+            }
+            double avgLength = total / n;
+            double maxDiff = 0;
+            for (LineObject L : selectedEqualLengthLines) {
+                double diff = Math.abs(L.getLength() - avgLength);
+                if (diff > maxDiff)
+                    maxDiff = diff;
+            }
+            if (maxDiff < tolerance)
+                break;
+            enforceEqualLengthConstraintOnSelectedLines();
+        }
+        // Clear selection and repaint.
+        selectedEqualLengthLines.clear();
+        repaint();
     }
 
     /** 
@@ -226,24 +313,7 @@ public class DrawingCanvas extends JPanel implements MouseListener, MouseMotionL
     }
     
     @Override
-    public void mouseClicked(MouseEvent e) {
-        // int x = e.getX();
-        // int y = e.getY();
-        // if (currentMode == Mode.POINT) {
-        //     objects.add(new PointObject(x, y));
-        // } else if (currentMode == Mode.LINE) {
-        //     if (startPoint == null) {
-        //         startPoint = new Point(x, y);
-        //     } else {
-        //         objects.add(new LineObject(startPoint.x, startPoint.y, x, y));
-        //         startPoint = null;
-        //     }
-        // } else if (currentMode == Mode.ARC) {
-        //     // For simplicity, we create an arc with a fixed radius and angles.
-        //     objects.add(new ArcObject(x, y, 50, 0, 180));
-        // }
-        // repaint();
-    }
+    public void mouseClicked(MouseEvent e) {}
     
     // Other mouse events (can be expanded as needed)
     @Override 
@@ -326,24 +396,42 @@ public class DrawingCanvas extends JPanel implements MouseListener, MouseMotionL
                     }
                 }
             }
+        // } else if (currentMode == Mode.EQUAL_LENGTH) {
+        //     // reverse iteration to check on the top-most object first 
+        //     for (int i = objects.size()-1; i>=0; i--) {
+        //         GeometricObject obj = objects.get(i); 
+        //         if (obj instanceof LineObject && obj.contains(x,y)) {
+        //             LineObject line = (LineObject) obj; 
+        //             if (referenceLineForEqLength == null) {
+        //                 // set as reference 
+        //                 referenceLineForEqLength = line; 
+        //                 System.out.println("ref line for equal length selected"); 
+        //             } else {
+        //                 double refLength = referenceLineForEqLength.getLength(); 
+        //                 line.setLength(refLength); 
+        //                 System.out.println("line length adjusted"); 
+        //             }
+        //             repaint(); 
+        //             break; 
+        //         }
+        //     }
         } else if (currentMode == Mode.EQUAL_LENGTH) {
-            // reverse iteration to check on the top-most object first 
+            // In EQUAL_LENGTH mode, user clicks on a line to add it to the selection.
+            boolean found = false;
             for (int i = objects.size()-1; i>=0; i--) {
-                GeometricObject obj = objects.get(i); 
-                if (obj instanceof LineObject && obj.contains(x,y)) {
-                    LineObject line = (LineObject) obj; 
-                    if (referenceLineForEqLength == null) {
-                        // set as reference 
-                        referenceLineForEqLength = line; 
-                        System.out.println("ref line for equal length selected"); 
-                    } else {
-                        double refLength = referenceLineForEqLength.getLength(); 
-                        line.setLength(refLength); 
-                        System.out.println("line length adjusted"); 
+                GeometricObject obj = objects.get(i);
+                if (obj instanceof LineObject && obj.contains(x, y)) {
+                    LineObject line = (LineObject)obj;
+                    if (!selectedEqualLengthLines.contains(line)) {
+                        selectedEqualLengthLines.add(line); 
+                        System.out.println("Selected line: " + line);
                     }
-                    repaint(); 
-                    break; 
+                    found = true;
+                    break;
                 }
+            }
+            if (!found) {
+                System.out.println("No line found at ("+x+","+y+")");
             }
         } else if (currentMode == Mode.MOVE) {
             PointObject pt = findNearbyPoint(x, y); 
