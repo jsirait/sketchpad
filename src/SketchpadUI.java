@@ -26,13 +26,13 @@ public class SketchpadUI extends JFrame {
         JPanel buttonPanelBottom = new JPanel(new FlowLayout());
         JButton equalLengthButton = new JButton("equal length");
         JButton parallelButton = new JButton("parallel");
-        JButton coincideButton = new JButton("coincide");
+        JButton groupButton = new JButton("group");
         JButton perpendicularButton = new JButton("perpendicular");
         // Optional extra button if needed
         JButton tangentButton = new JButton("tangent");
         buttonPanelBottom.add(equalLengthButton);
         buttonPanelBottom.add(parallelButton);
-        buttonPanelBottom.add(coincideButton);
+        buttonPanelBottom.add(groupButton);
         buttonPanelBottom.add(perpendicularButton);
         buttonPanelBottom.add(tangentButton);
         
@@ -69,7 +69,10 @@ public class SketchpadUI extends JFrame {
             }
             
         });
-        coincideButton.addActionListener(e -> System.out.println("Coincide constraint selected."));
+        groupButton.addActionListener(e -> {
+            System.out.println("Group constraint selected."); 
+            canvas.setMode(DrawingCanvas.Mode.GROUP_SELECT);
+        });
         perpendicularButton.addActionListener(e -> System.out.println("Perpendicular constraint selected."));
         tangentButton.addActionListener(e -> System.out.println("Tangent constraint selected."));
     }
