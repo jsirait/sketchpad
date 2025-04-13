@@ -20,10 +20,8 @@ public class DrawingCanvas extends JPanel implements MouseListener, MouseMotionL
 
     private ConstraintSolverManager solverManager = new ConstraintSolverManager(); 
 
-    // reference line for equal length 
-    // private LineObject referenceLineForEqLength = null; 
+    // lines for equal length 
     private List<LineObject> selectedEqualLengthLines = new ArrayList<>();
-    
     
     private Mode currentMode = Mode.NONE;
     private List<GeometricObject> objects = new ArrayList<>();
@@ -44,7 +42,7 @@ public class DrawingCanvas extends JPanel implements MouseListener, MouseMotionL
     private int lastX, lastY; 
     private long lastTime;  // in milliseconds 
     // threshold speed in pixels per milliseconds 
-    private static final double FLICK_THRESHOLD = 2.0; 
+    private static final double FLICK_THRESHOLD = 3.0; 
 
     // for arc draw 
     // arc stage defined 
@@ -72,7 +70,6 @@ public class DrawingCanvas extends JPanel implements MouseListener, MouseMotionL
         arcStage = 0; 
         if (mode != Mode.EQUAL_LENGTH) {
             // reset 
-            // referenceLineForEqLength = null;  
             selectedEqualLengthLines.clear(); 
         }
         repaint(); 
@@ -148,9 +145,7 @@ public class DrawingCanvas extends JPanel implements MouseListener, MouseMotionL
         for (GeometricObject obj : objects) {
             if (obj instanceof PointObject) {
                 PointObject pt = (PointObject) obj; 
-                if (pt.contains(x,y)) {
-                    return pt; 
-                }
+                if (pt.contains(x,y))  { return pt; }
             }
         } 
         return null; 
@@ -212,6 +207,8 @@ public class DrawingCanvas extends JPanel implements MouseListener, MouseMotionL
     }
     
     // Finalize equal-length constraint iteratively until convergence.
+    // In DrawingCanvas.java
+
     // Helper class for pairing a point with its polar angle (for sorting)
     private static class PointAngle {
         public PointObject pt;
@@ -237,7 +234,6 @@ public class DrawingCanvas extends JPanel implements MouseListener, MouseMotionL
                 while (!queue.isEmpty()) {
                     PointObject cur = queue.poll();
                     comp.add(cur);
-                    // For each line incident to cur, add the other endpoint.
                     for (LineObject line : incidence.get(cur)) {
                         PointObject other = line.getStartPoint().equals(cur) ? line.getEndPoint() : line.getStartPoint();
                         if (!visited.contains(other)) {
@@ -264,124 +260,159 @@ public class DrawingCanvas extends JPanel implements MouseListener, MouseMotionL
             incidence.computeIfAbsent(A, k -> new HashSet<>()).add(line);
             incidence.computeIfAbsent(B, k -> new HashSet<>()).add(line);
         }
-        
-        // Compute connected components from the vertex set.
+
+        // Compute connected components.
         List<Set<PointObject>> components = findConnectedComponents(vertexSet, incidence);
-        
-        // Iterate over each connected component.
-        for (Set<PointObject> comp : components) {
-            // Collect all lines for this component.
-            Set<LineObject> compLines = new HashSet<>();
-            for (PointObject pt : comp) {
-                if (incidence.containsKey(pt)) {
-                    compLines.addAll(incidence.get(pt));
-                }
-            }
-            // Compute the average side length for the component.
-            double total = 0;
-            for (LineObject line : compLines) {
-                total += line.getLength();
-            }
-            double avgLength = total / compLines.size();
-            
-            // Check if the component forms a closed polygon:
-            // every vertex should have exactly degree 2 and at least 3 points must be involved.
-            boolean closed = true;
-            for (PointObject pt : comp) {
-                if (incidence.get(pt).size() != 2) {
-                    closed = false;
-                    break;
-                }
-            }
-            if (closed && comp.size() >= 3) {
-                // --- Closed Polygon: Project vertices onto a circle to form a regular polygon ---
-                
-                // Compute the centroid.
-                double sumX = 0, sumY = 0;
+
+        final int maxIterations = 50;
+        final double tolerance = 0.5; // tolerance in pixels
+
+        for (int iter = 0; iter < maxIterations; iter++) {
+            double globalMaxMovement = 0;
+
+            // Process each connected component separately.
+            for (Set<PointObject> comp : components) {
+                // Get the set of lines for this component.
+                Set<LineObject> compLines = new HashSet<>();
                 for (PointObject pt : comp) {
-                    sumX += pt.getX();
-                    sumY += pt.getY();
+                    if (incidence.containsKey(pt)) {
+                        compLines.addAll(incidence.get(pt));
+                    }
                 }
-                double centerX = sumX / comp.size();
-                double centerY = sumY / comp.size();
-                
-                // Order the vertices in angular order around the centroid.
-                List<PointAngle> paList = new ArrayList<>();
-                for (PointObject pt : comp) {
-                    double angle = Math.atan2(pt.getY() - centerY, pt.getX() - centerX);
-                    paList.add(new PointAngle(pt, angle));
-                }
-                Collections.sort(paList, (p1, p2) -> Double.compare(p1.angle, p2.angle));
-                
-                // For an n-sided regular polygon, the side length L relates to the circumradius R via:
-                // L = 2 * R * sin(PI/n)   so R = L / (2*sin(PI/n))
-                int n = comp.size();
-                double R = avgLength / (2 * Math.sin(Math.PI / n));
-                
-                // Use the angle of the first vertex as a base.
-                double baseAngle = paList.get(0).angle;
-                for (int i = 0; i < n; i++) {
-                    double targetAngle = baseAngle + 2 * Math.PI * i / n;
-                    PointObject pt = paList.get(i).pt;
-                    double targetX = centerX + R * Math.cos(targetAngle);
-                    double targetY = centerY + R * Math.sin(targetAngle);
-                    pt.setX((int) Math.round(targetX));
-                    pt.setY((int) Math.round(targetY));
-                    solverManager.updatePoint(pt);
-                }
-            } else {
-                // --- Open or non-closed components ---
-                // For each selected line, compute the correction needed so that the line’s length moves
-                // toward the average. Distribute the correction (half to one endpoint, half to the other).
-                
-                // Use a map to accumulate corrections for each point:
-                // The value is an array of [sumXCorrection, sumYCorrection, count].
-                Map<PointObject, double[]> corrections = new HashMap<>();
+
+                // Compute the average side length for this component.
+                double totalLength = 0;
                 for (LineObject line : compLines) {
-                    PointObject A = line.getStartPoint();
-                    PointObject B = line.getEndPoint();
-                    double currentLen = line.getLength();
-                    if (currentLen == 0) continue;
-                    double error = currentLen - avgLength;
-                    double dx = (B.getX() - A.getX()) / currentLen;
-                    double dy = (B.getY() - A.getY()) / currentLen;
-                    // Correction: move A opposite the direction and B in the direction by half of the error.
-                    double corrAx = -0.5 * error * dx;
-                    double corrAy = -0.5 * error * dy;
-                    double corrBx = 0.5 * error * dx;
-                    double corrBy = 0.5 * error * dy;
-                    
-                    corrections.computeIfAbsent(A, k -> new double[]{0, 0, 0});
-                    double[] aCorr = corrections.get(A);
-                    aCorr[0] += corrAx;
-                    aCorr[1] += corrAy;
-                    aCorr[2] += 1;
-                    
-                    corrections.computeIfAbsent(B, k -> new double[]{0, 0, 0});
-                    double[] bCorr = corrections.get(B);
-                    bCorr[0] += corrBx;
-                    bCorr[1] += corrBy;
-                    bCorr[2] += 1;
+                    totalLength += line.getLength();
                 }
-                // Apply average correction for each point.
-                for (Map.Entry<PointObject, double[]> entry : corrections.entrySet()) {
-                    PointObject pt = entry.getKey();
-                    double[] arr = entry.getValue();
-                    double avgCorrX = arr[0] / arr[2];
-                    double avgCorrY = arr[1] / arr[2];
-                    pt.setX((int) Math.round(pt.getX() + avgCorrX));
-                    pt.setY((int) Math.round(pt.getY() + avgCorrY));
-                    solverManager.updatePoint(pt);
+                double avgLength = totalLength / compLines.size();
+
+                // Determine whether the component forms a closed polygon: every vertex has degree 2.
+                boolean closed = true;
+                for (PointObject pt : comp) {
+                    Set<LineObject> inc = incidence.get(pt);
+                    if (inc == null || inc.size() != 2) {
+                        closed = false;
+                        break;
+                    }
+                }
+
+                if (closed && comp.size() >= 3) {
+                    // --- Closed Polygon: Project onto a circle to form a regular polygon ---
+                    double sumX = 0, sumY = 0;
+                    for (PointObject pt : comp) {
+                        sumX += pt.getX();
+                        sumY += pt.getY();
+                    }
+                    double centerX = sumX / comp.size();
+                    double centerY = sumY / comp.size();
+
+                    // Order vertices by angle around the centroid.
+                    List<PointAngle> paList = new ArrayList<>();
+                    for (PointObject pt : comp) {
+                        double angle = Math.atan2(pt.getY() - centerY, pt.getX() - centerX);
+                        paList.add(new PointAngle(pt, angle));
+                    }
+                    Collections.sort(paList, (p1, p2) -> Double.compare(p1.angle, p2.angle));
+
+                    int n = comp.size();
+                    // For a regular polygon, the side length L relates to the circumradius R by: L = 2 * R * sin(PI/n)
+                    double R = avgLength / (2 * Math.sin(Math.PI / n));
+                    double baseAngle = paList.get(0).angle;
+
+                    for (int i = 0; i < n; i++) {
+                        double targetAngle = baseAngle + 2 * Math.PI * i / n;
+                        PointObject pt = paList.get(i).pt;
+                        double targetX = centerX + R * Math.cos(targetAngle);
+                        double targetY = centerY + R * Math.sin(targetAngle);
+                        double dx = targetX - pt.getX();
+                        double dy = targetY - pt.getY();
+                        globalMaxMovement = Math.max(globalMaxMovement, Math.hypot(dx, dy));
+                        pt.setX((int) Math.round(targetX));
+                        pt.setY((int) Math.round(targetY));
+                        solverManager.updatePoint(pt);
+                    }
+                } else {
+                    // --- Open or Non-Closed Component ---
+                    // We'll compute corrections for each line.
+                    // Use a map to accumulate corrections per point: value is [sumX, sumY, count]
+                    Map<PointObject, double[]> corrections = new HashMap<>();
+
+                    for (LineObject line : compLines) {
+                        PointObject A = line.getStartPoint();
+                        PointObject B = line.getEndPoint();
+                        double currentLen = line.getLength();
+                        if (currentLen == 0) continue;
+                        int degreeA = incidence.get(A).size();
+                        int degreeB = incidence.get(B).size();
+                        double dx = (B.getX() - A.getX()) / currentLen;
+                        double dy = (B.getY() - A.getY()) / currentLen;
+
+                        // If one endpoint is a branch (degree > 1) and the other is free (degree == 1),
+                        // update the free endpoint only.
+                        if (degreeA > 1 && degreeB == 1) {
+                            double targetX = A.getX() + avgLength * dx;
+                            double targetY = A.getY() + avgLength * dy;
+                            double corrBx = targetX - B.getX();
+                            double corrBy = targetY - B.getY();
+                            corrections.computeIfAbsent(B, k -> new double[]{0, 0, 0});
+                            double[] arr = corrections.get(B);
+                            arr[0] += corrBx;
+                            arr[1] += corrBy;
+                            arr[2] += 1;
+                        } else if (degreeB > 1 && degreeA == 1) {
+                            double targetX = B.getX() - avgLength * dx;
+                            double targetY = B.getY() - avgLength * dy;
+                            double corrAx = targetX - A.getX();
+                            double corrAy = targetY - A.getY();
+                            corrections.computeIfAbsent(A, k -> new double[]{0, 0, 0});
+                            double[] arr = corrections.get(A);
+                            arr[0] += corrAx;
+                            arr[1] += corrAy;
+                            arr[2] += 1;
+                        } else {
+                            // Otherwise, update both endpoints by half the correction.
+                            double error = currentLen - avgLength;
+                            double corrAx = -0.5 * error * dx;
+                            double corrAy = -0.5 * error * dy;
+                            double corrBx = 0.5 * error * dx;
+                            double corrBy = 0.5 * error * dy;
+                            corrections.computeIfAbsent(A, k -> new double[]{0, 0, 0});
+                            double[] aArr = corrections.get(A);
+                            aArr[0] += corrAx;
+                            aArr[1] += corrAy;
+                            aArr[2] += 1;
+                            corrections.computeIfAbsent(B, k -> new double[]{0, 0, 0});
+                            double[] bArr = corrections.get(B);
+                            bArr[0] += corrBx;
+                            bArr[1] += corrBy;
+                            bArr[2] += 1;
+                        }
+                    }
+                    // Apply the computed correction to each point.
+                    for (Map.Entry<PointObject, double[]> entry : corrections.entrySet()) {
+                        PointObject pt = entry.getKey();
+                        double[] arr = entry.getValue();
+                        double corrX = arr[0] / arr[2];
+                        double corrY = arr[1] / arr[2];
+                        globalMaxMovement = Math.max(globalMaxMovement, Math.hypot(corrX, corrY));
+                        pt.setX((int) Math.round(pt.getX() + corrX));
+                        pt.setY((int) Math.round(pt.getY() + corrY));
+                        solverManager.updatePoint(pt);
+                    }
                 }
             }
+            solverManager.solve();
+            System.out.println("Iteration " + iter); 
+            repaint();
+
+            if (globalMaxMovement < tolerance)
+                break;
         }
-        // Tell the solver to update all point positions.
-        solverManager.solve();
+
         selectedEqualLengthLines.clear();
-        repaint();
         System.out.println("Equal length constraint applied.");
     }
-
 
 
     /** 
@@ -543,25 +574,6 @@ public class DrawingCanvas extends JPanel implements MouseListener, MouseMotionL
                     }
                 }
             }
-        // } else if (currentMode == Mode.EQUAL_LENGTH) {
-        //     // reverse iteration to check on the top-most object first 
-        //     for (int i = objects.size()-1; i>=0; i--) {
-        //         GeometricObject obj = objects.get(i); 
-        //         if (obj instanceof LineObject && obj.contains(x,y)) {
-        //             LineObject line = (LineObject) obj; 
-        //             if (referenceLineForEqLength == null) {
-        //                 // set as reference 
-        //                 referenceLineForEqLength = line; 
-        //                 System.out.println("ref line for equal length selected"); 
-        //             } else {
-        //                 double refLength = referenceLineForEqLength.getLength(); 
-        //                 line.setLength(refLength); 
-        //                 System.out.println("line length adjusted"); 
-        //             }
-        //             repaint(); 
-        //             break; 
-        //         }
-        //     }
         } else if (currentMode == Mode.EQUAL_LENGTH) {
             // In EQUAL_LENGTH mode, user clicks on a line to add it to the selection.
             boolean found = false;
