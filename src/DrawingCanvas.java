@@ -2,6 +2,7 @@ import javax.swing.*;
 import java.awt.*;
 import java.awt.event.*;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -24,7 +25,6 @@ public class DrawingCanvas extends JPanel implements MouseListener, MouseMotionL
     
     private Mode currentMode = Mode.NONE;
     private List<GeometricObject> objects = new ArrayList<>();
-    // private Point startPoint;  // Used for line creation 
 
     // zooming 
     private double scale = 1.0; 
@@ -78,7 +78,6 @@ public class DrawingCanvas extends JPanel implements MouseListener, MouseMotionL
     } 
 
     public void zoomIn()  { scale *= 1.1;  repaint(); } 
-
     public void zoomOut()  { scale /= 1.1; repaint(); }
 
     /** 
@@ -94,7 +93,6 @@ public class DrawingCanvas extends JPanel implements MouseListener, MouseMotionL
                 usedPoints.add(line.getEndPoint()); 
             }
         } 
-
         // remove points that are not used by any line 
         objects.removeIf(obj -> (obj instanceof PointObject) && !usedPoints.contains((obj))); 
     }
@@ -184,7 +182,8 @@ public class DrawingCanvas extends JPanel implements MouseListener, MouseMotionL
             double uy = dy / currentLength;
             // We decide to adjust both endpoints by half the correction.
             // For A: new target = A - (error/2)*u, for B: new target = B + (error/2)*u.
-            double corr = error / 2.0;
+            double damping = 0.5;  // or try 0.3, etc.
+            double corr = damping * (error / 2.0);
             PointObject targetA = new PointObject((int) (A.getX() - corr * ux), (int) (A.getY() - corr * uy));
             PointObject targetB = new PointObject((int) (B.getX() + corr * ux), (int) (B.getY() + corr * uy));
             
@@ -211,31 +210,105 @@ public class DrawingCanvas extends JPanel implements MouseListener, MouseMotionL
     }
     
     // Finalize equal-length constraint iteratively until convergence.
-    public void finalizeEqualLengthConstraint() {
-        final int maxIterations = 50;
-        final double tolerance = 0.5;
-        for (int iter = 0; iter < maxIterations; iter++) {
-            // Calculate the average and maximum deviation.
-            double total = 0;
-            int n = selectedEqualLengthLines.size();
-            for (LineObject L : selectedEqualLengthLines) {
-                total += L.getLength();
-            }
-            double avgLength = total / n;
-            double maxDiff = 0;
-            for (LineObject L : selectedEqualLengthLines) {
-                double diff = Math.abs(L.getLength() - avgLength);
-                if (diff > maxDiff)
-                    maxDiff = diff;
-            }
-            if (maxDiff < tolerance)
-                break;
-            enforceEqualLengthConstraintOnSelectedLines();
-        }
-        // Clear selection and repaint.
-        selectedEqualLengthLines.clear();
-        repaint();
+// Inside DrawingCanvas.java
+
+// Helper class for sorting vertices by angle
+private static class PointAngle {
+    public PointObject pt;
+    public double angle;
+    public PointAngle(PointObject pt, double angle) {
+        this.pt = pt;
+        this.angle = angle;
     }
+}
+
+public void finalizeEqualLengthConstraint() {
+    // First, check if we have exactly three lines that form a triangle.
+    Set<PointObject> triangleVertices = new HashSet<>();
+    for (LineObject line : selectedEqualLengthLines) {
+        triangleVertices.add(line.getStartPoint());
+        triangleVertices.add(line.getEndPoint());
+    }
+    if (triangleVertices.size() != 3) {
+        System.out.println("Please select three lines that form a closed triangle.");
+        return;
+    }
+    
+    // Extract the three vertices into a list.
+    List<PointObject> triPoints = new ArrayList<>(triangleVertices);
+    
+    // Iterative projection to an equilateral triangle.
+    final int maxIterations = 50;
+    final double tolerance = 0.001;
+    for (int iter = 0; iter < maxIterations; iter++) {
+        // Compute the centroid of the triangle.
+        double sumX = 0, sumY = 0;
+        for (PointObject pt : triPoints) {
+            sumX += pt.getX();
+            sumY += pt.getY();
+        }
+        double centerX = sumX / 3.0;
+        double centerY = sumY / 3.0;
+        
+        // Create a list of points paired with their angle relative to the centroid.
+        List<PointAngle> paList = new ArrayList<>();
+        for (PointObject pt : triPoints) {
+            double angle = Math.atan2(pt.getY() - centerY, pt.getX() - centerX);
+            paList.add(new PointAngle(pt, angle));
+        }
+        // Sort by angle so the vertices are ordered clockwise (or counterclockwise)
+        Collections.sort(paList, (p1, p2) -> Double.compare(p1.angle, p2.angle));
+        // Reconstruct the sorted list of points.
+        for (int i = 0; i < 3; i++) {
+            triPoints.set(i, paList.get(i).pt);
+        }
+        
+        // Compute current side lengths.
+        PointObject A = triPoints.get(0);
+        PointObject B = triPoints.get(1);
+        PointObject C = triPoints.get(2);
+        double L_AB = Math.hypot(B.getX() - A.getX(), B.getY() - A.getY());
+        double L_BC = Math.hypot(C.getX() - B.getX(), C.getY() - B.getY());
+        double L_CA = Math.hypot(A.getX() - C.getX(), A.getY() - C.getY());
+        double avgSide = (L_AB + L_BC + L_CA) / 3.0;
+        // In an equilateral triangle, the distance from the centroid to a vertex is L/√3.
+        double R_ideal = avgSide / Math.sqrt(3);
+        
+        // Use the angle of the first vertex as a base.
+        double baseAngle = Math.atan2(triPoints.get(0).getY() - centerY, triPoints.get(0).getX() - centerX);
+        double[] targetAngles = new double[] {
+            baseAngle,
+            baseAngle + 2 * Math.PI / 3,
+            baseAngle + 4 * Math.PI / 3
+        };
+        
+        // Update each vertex toward its target location.
+        double maxMovement = 0;
+        for (int i = 0; i < 3; i++) {
+            double targetX = centerX + R_ideal * Math.cos(targetAngles[i]);
+            double targetY = centerY + R_ideal * Math.sin(targetAngles[i]);
+            PointObject pt = triPoints.get(i);
+            double dx = targetX - pt.getX();
+            double dy = targetY - pt.getY();
+            double movement = Math.hypot(dx, dy);
+            maxMovement = Math.max(maxMovement, movement);
+            // Update the point. (Here, we update directly then inform the Cassowary-based manager.)
+            pt.setX((int)Math.round(targetX));
+            pt.setY((int)Math.round(targetY));
+            solverManager.updatePoint(pt);
+        }
+        solverManager.solve();
+        if (maxMovement < tolerance) {
+            break;
+        }
+    }
+    
+    // After convergence, clear the selection and repaint the canvas.
+    selectedEqualLengthLines.clear();
+    repaint();
+    System.out.println("Equilateral triangle constraint applied.");
+}
+
 
     /** 
      * ARC 
