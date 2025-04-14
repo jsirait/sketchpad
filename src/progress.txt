@@ -1,2 +1,5 @@
-* Make progress with arc; need to be 360 degrees 
 * Equal length doesn't work yet if the lines do not share a point 
+* My problem is that I still need Sketchpad to 'remember' the constraints. 
+    Right now, applying a new constraint means we forget about the old ones. 
+    I think we need to remember all constraints that have been applied to each variable 
+    and try to satisfy them all. 
