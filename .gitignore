@@ -1,0 +1,4 @@
+*.class
+/lib/*
+/out/*
+.DS_Store
